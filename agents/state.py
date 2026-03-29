@@ -13,3 +13,5 @@ class AgentState(TypedDict):
     sources: list[dict]
     next_agent: str
     iteration: int
+    max_iterations: int
+    temperature: float

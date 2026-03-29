@@ -15,6 +15,10 @@ def _init_session():
         st.session_state.messages = []
     if "trace_events" not in st.session_state:
         st.session_state.trace_events = []
+    if "temperature" not in st.session_state:
+        st.session_state.temperature = 0.3
+    if "max_iterations" not in st.session_state:
+        st.session_state.max_iterations = 3
 
 
 def render_chat():
@@ -51,7 +55,6 @@ def render_chat():
             config = {"configurable": {"thread_id": st.session_state.thread_id}}
 
             final_report = ""
-            sources = []
 
             try:
                 for event in graph.stream(
@@ -64,6 +67,8 @@ def render_chat():
                         "next_agent": "",
                         "research_query": "",
                         "iteration": 0,
+                        "max_iterations": st.session_state.max_iterations,
+                        "temperature": st.session_state.temperature,
                     },
                     config=config,
                     stream_mode="updates",
@@ -87,16 +92,18 @@ def render_chat():
                         trace_events.append({"node": node_name, "summary": summary})
                         status_placeholder.info(f"🔄 **{node_name.replace('_', ' ').title()}**: {summary}")
 
-                        # Capture final output
+                        # Capture final report output
                         if node_name == "writer" and node_output.get("report"):
                             final_report = node_output["report"]
 
-                        if node_output.get("sources"):
-                            sources = node_output["sources"]
+                # Retrieve the fully accumulated state (sources from all agent rounds)
+                final_state = graph.get_state(config).values
+                sources = final_state.get("sources", [])
 
             except Exception as e:
                 st.error(f"Error: {e}")
                 final_report = f"An error occurred while processing your query: {e}"
+                sources = []
 
             status_placeholder.empty()
             response_placeholder.markdown(final_report)

@@ -1,3 +1,4 @@
+import os
 import tempfile
 from datetime import datetime, timezone
 from io import BytesIO
@@ -9,9 +10,13 @@ from langchain_core.documents import Document
 def load_pdf(file: BytesIO, filename: str) -> list[Document]:
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(file.read())
-        tmp.flush()
-        loader = PyPDFLoader(tmp.name)
+        tmp_path = tmp.name
+
+    try:
+        loader = PyPDFLoader(tmp_path)
         docs = loader.load()
+    finally:
+        os.unlink(tmp_path)
 
     for doc in docs:
         doc.metadata.update({

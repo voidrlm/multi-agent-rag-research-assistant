@@ -1,7 +1,11 @@
+import logging
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from agents.state import AgentState
 from core.llm import get_llm
+
+logger = logging.getLogger(__name__)
 
 WRITER_PROMPT = """You are a report writer. Synthesize all gathered research findings and fact-checked information into a clear, well-structured report.
 
@@ -16,7 +20,8 @@ Instructions:
 
 
 def writer_node(state: AgentState) -> dict:
-    llm = get_llm(streaming=True, temperature=0.3)
+    temperature = state.get("temperature", 0.3)
+    llm = get_llm(streaming=True, temperature=temperature)
 
     # Build context for the writer
     context_parts = []
@@ -35,9 +40,8 @@ def writer_node(state: AgentState) -> dict:
     context = "\n\n".join(context_parts) if context_parts else "No research data was gathered."
 
     query = state.get("research_query", "")
-    if not query and state.get("messages"):
-        # Find the original user message
-        for msg in state["messages"]:
+    if not query:
+        for msg in state.get("messages", []):
             if hasattr(msg, "type") and msg.type == "human":
                 query = msg.content
 
@@ -46,9 +50,16 @@ def writer_node(state: AgentState) -> dict:
         HumanMessage(content=f"User's question: {query}\n\nGathered research:\n{context}\n\nWrite a comprehensive report."),
     ]
 
-    response = llm.invoke(messages)
+    try:
+        response = llm.invoke(messages)
+        report = response.content or "The report could not be generated."
+    except Exception as e:
+        logger.error("Writer node LLM call failed: %s", e, exc_info=True)
+        report = f"An error occurred while generating the report: {e}"
+
+    logger.info("Writer completed report, length: %d chars", len(report))
 
     return {
-        "report": response.content,
-        "messages": [AIMessage(content=response.content, name="writer")],
+        "report": report,
+        "messages": [AIMessage(content=report, name="writer")],
     }
